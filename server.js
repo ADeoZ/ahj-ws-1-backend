@@ -19,23 +19,41 @@ app.use(
 const port = process.env.PORT || 7070;
 const server = http.createServer(app.callback());
 
-const clients = new Set();
+const clients = [];
 const wsServer = new WS.Server({ server });
 wsServer.on('connection', (ws, req) => {
-  ws.id = 'DeoZ' + Math.round(Math.random() * 100);
-  clients.add(ws);
   ws.on('message', msg => {
+    const command = JSON.parse(msg);
+    if (command.event === 'login') {
+      const findNickname = clients.findIndex((client) => client.nick === command.message);
+      if (findNickname === -1) {
+        ws.nick = command.message;
+        clients.push(ws);
+      } else {
+        ws.close(1000, 'Такой логин уже находится в чате');
+      }
+    }
     // console.log([...wsServer.clients]);
     // ws.send(ws.id + ': ' + msg);
     // [...wsServer.clients]
     // .filter(o => o.readyState === WS.OPEN)
     // .forEach(o => o.send(ws.id + ': ' + msg));
     for(let client of clients) {
-      client.send(ws.id + ': ' + msg);
+      client.send(ws.nick + ': ' + command.message);
     }
   });
 
-  ws.send('welcome');
+  ws.on('close', () => {
+    const findNickname = clients.findIndex((client) => client.nick === ws.nick);
+    if (findNickname !== -1) {
+      clients.splice(findNickname, 1);
+    }
+    for(let client of clients) {
+      client.send(ws.nick + ' отключился');
+    }
+  });
+
+  // ws.send('welcome');
 });
 
 
