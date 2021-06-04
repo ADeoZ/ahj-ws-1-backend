@@ -25,21 +25,29 @@ wsServer.on('connection', (ws, req) => {
   ws.on('message', msg => {
     const command = JSON.parse(msg);
     if (command.event === 'login') {
-      const findNickname = clients.findIndex((client) => client.nick === command.message);
-      if (findNickname === -1) {
+      const findNickname = clients.findIndex((client) => client.nick.toLowerCase() === command.message.toLowerCase());
+      if (findNickname === -1 && command.message != '') {
+
         ws.nick = command.message;
+        const clientsNicknameList = clients.map((client) => client.nick);
+        ws.send(JSON.stringify({ event: 'connect', message: clientsNicknameList }))
         clients.push(ws);
+
+        for(let client of clients) {
+          const chatMessage = JSON.stringify({ event: 'system', message: { action: 'login', nickname: ws.nick } });
+          client.send(chatMessage);
+        }
+
       } else {
-        ws.close(1000, 'Такой логин уже находится в чате');
+        ws.close(1000, 'Такой логин уже есть в чате');
       }
     }
-    // console.log([...wsServer.clients]);
-    // ws.send(ws.id + ': ' + msg);
-    // [...wsServer.clients]
-    // .filter(o => o.readyState === WS.OPEN)
-    // .forEach(o => o.send(ws.id + ': ' + msg));
-    for(let client of clients) {
-      client.send(ws.nick + ': ' + command.message);
+
+    if (command.event === 'chat') {
+      for(let client of clients) {
+        const chatMessage = JSON.stringify({ event: 'chat', message: { nickname: ws.nick, date: Date.now(), text: command.message } });
+        client.send(chatMessage);
+      }
     }
   });
 
@@ -47,13 +55,13 @@ wsServer.on('connection', (ws, req) => {
     const findNickname = clients.findIndex((client) => client.nick === ws.nick);
     if (findNickname !== -1) {
       clients.splice(findNickname, 1);
-    }
-    for(let client of clients) {
-      client.send(ws.nick + ' отключился');
+
+      for(let client of clients) {
+        const chatMessage = JSON.stringify({ event: 'system', message: { action: 'logout', nickname: ws.nick } });
+            client.send(chatMessage);
+      }
     }
   });
-
-  // ws.send('welcome');
 });
 
 
